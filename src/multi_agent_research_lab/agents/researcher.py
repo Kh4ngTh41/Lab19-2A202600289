@@ -1,6 +1,7 @@
 """Researcher agent skeleton."""
 
 from multi_agent_research_lab.agents.base import BaseAgent
+from multi_agent_research_lab.core.schemas import AgentResult
 from multi_agent_research_lab.core.state import ResearchState
 from multi_agent_research_lab.services.llm_client import LLMClient
 from multi_agent_research_lab.services.search_client import SearchClient
@@ -35,5 +36,17 @@ class ResearcherAgent(BaseAgent):
         user_prompt = f"Sources:\n{context}\n\nWrite concise research notes for: {query}"
         response = self._llm.complete(system_prompt, user_prompt)
         state.research_notes = response.content
+
+        state.agent_results.append(
+            AgentResult(
+                agent="researcher",
+                content=response.content,
+                metadata={
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "cost_usd": response.cost_usd,
+                },
+            )
+        )
 
         return state

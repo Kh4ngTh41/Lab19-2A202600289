@@ -1,6 +1,7 @@
 """Writer agent skeleton."""
 
 from multi_agent_research_lab.agents.base import BaseAgent
+from multi_agent_research_lab.core.schemas import AgentResult
 from multi_agent_research_lab.core.state import ResearchState
 from multi_agent_research_lab.services.llm_client import LLMClient
 
@@ -37,5 +38,17 @@ class WriterAgent(BaseAgent):
         )
         response = self._llm.complete(system_prompt, user_prompt)
         state.final_answer = response.content
+
+        state.agent_results.append(
+            AgentResult(
+                agent="writer",
+                content=response.content,
+                metadata={
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "cost_usd": response.cost_usd,
+                },
+            )
+        )
 
         return state

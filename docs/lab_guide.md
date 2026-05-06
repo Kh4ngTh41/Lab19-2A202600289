@@ -18,54 +18,51 @@ Bạn cần xây dựng một research assistant có thể nhận câu hỏi dà
 ## Milestone 1: Baseline
 
 File gợi ý:
-
 - `src/multi_agent_research_lab/cli.py`
 - `src/multi_agent_research_lab/services/llm_client.py`
 
-TODO(student): thay baseline placeholder bằng một call LLM thật.
+Đã implement LLMClient với OpenAI API, retry và token logging.
 
 ## Milestone 2: Supervisor
 
 File gợi ý:
-
 - `src/multi_agent_research_lab/agents/supervisor.py`
 - `src/multi_agent_research_lab/graph/workflow.py`
 
-TODO(student): implement routing policy.
+Đã implement routing policy với các câu hỏi thiết kế đã trả lời:
 
-Gợi ý câu hỏi thiết kế:
-
-- Khi nào gọi Researcher?
-- Khi nào gọi Analyst?
-- Khi nào gọi Writer?
-- Khi nào stop?
-- Nếu agent fail thì retry hay fallback?
+- **Khi nào gọi Researcher?** Khi `research_notes == None`
+- **Khi nào gọi Analyst?** Khi có `research_notes` nhưng chưa có `analysis_notes`
+- **Khi nào gọi Writer?** Khi có `analysis_notes` nhưng chưa có `final_answer`
+- **Khi nào stop?** Khi `final_answer` đã có hoặc `iteration >= max_iterations`
+- **Nếu agent fail thì retry hay fallback?** Retry 3 lần với exponential backoff, fallback sang search source khác
 
 ## Milestone 3: Worker agents
 
 File gợi ý:
-
 - `agents/researcher.py`
 - `agents/analyst.py`
 - `agents/writer.py`
 
-TODO(student): implement từng worker.
+Đã implement đầy đủ:
+- **Researcher**: search + research notes
+- **Analyst**: extract key claims, compare viewpoints, flag weak evidence
+- **Writer**: synthesize response với citations
 
 ## Milestone 4: Trace và benchmark
 
 File gợi ý:
-
 - `observability/tracing.py`
 - `evaluation/benchmark.py`
 - `evaluation/report.py`
 
-Benchmark tối thiểu:
+Benchmark tối thiểu đã implement:
 
-| Metric | Cách đo gợi ý |
+| Metric | Cách đo |
 |---|---|
 | Latency | wall-clock time |
-| Cost | token usage hoặc provider usage |
-| Quality | rubric 0-10 do peer review |
+| Cost | token usage từ OpenAI API |
+| Quality | rubric 0-10 (content completeness) |
 | Citation coverage | số claims có source / tổng claims chính |
 | Failure rate | số query fail / tổng query |
 
@@ -73,5 +70,13 @@ Benchmark tối thiểu:
 
 Mỗi nhóm trả lời 2 câu:
 
-1. Case nào nên dùng multi-agent? Vì sao?
-2. Case nào không nên dùng multi-agent? Vì sao?
+1. **Case nào nên dùng multi-agent? Vì sao?**
+   - Khi cần separation of concerns rõ ràng
+   - Khi cần routing linh hoạt theo state
+   - Khi cần debug từng bước riêng biệt
+   - Khi muốn scale từng agent độc lập
+
+2. **Case nào không nên dùng multi-agent? Vì sao?**
+   - Khi task đơn giản, một agent làm đủ
+   - Khi latency quan trọng hơn quality (multi-agent có overhead)
+   - Khi chi phí API quan trọng hơn (multi-agent dùng nhiều LLM calls hơn)

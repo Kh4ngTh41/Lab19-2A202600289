@@ -1,65 +1,70 @@
-"""Tracing hooks.
+"""Tracing hooks with Langfuse integration.
 
-This file intentionally avoids binding to one provider. Students can plug in LangSmith,
-Langfuse, OpenTelemetry, or simple JSON traces.
+Best practices:
+- Use nested spans for distinct steps (agent:researcher, agent:analyst, etc.)
+- Use descriptive names for traces
+- Flush at the end of script
+- Import Langfuse AFTER loading environment variables
 """
 
-import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
+from langfuse import Langfuse, observe
 
-_trace_dir = Path.home() / ".claude" / "projects" / "multi-agent-traces"
-_trace_dir.mkdir(parents=True, exist_ok=True)
+from multi_agent_research_lab.core.config import get_settings
+
+
+_client: Langfuse | None = None
+
+
+def _get_client() -> Langfuse:
+    """Get or create Langfuse client."""
+    global _client
+    if _client is None:
+        _client = Langfuse()
+    return _client
 
 
 @contextmanager
 def trace_span(name: str, attributes: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
-    """Minimal span context used by the skeleton.
+    """Create a Langfuse span for tracing.
 
-    Writes spans to a JSON file for later analysis. Can be augmented with
-    LangSmith/Langfuse provider spans when API keys are available.
+    Best practices:
+    - Use descriptive names like 'agent:researcher', 'llm:openai'
+    - Pass relevant attributes for context
     """
-    started = datetime.now()
-    span: dict[str, Any] = {
-        "name": name,
-        "attributes": attributes or {},
-        "duration_seconds": None,
-        "started": started.isoformat(),
-    }
-    try:
-        yield span
-    finally:
-        span["duration_seconds"] = (datetime.now() - started).total_seconds()
-        span["ended"] = datetime.now().isoformat()
-        _write_span(span)
+    client = _get_client()
+    span: dict[str, Any] = {"name": name, "attributes": attributes or {}}
+
+    with client.span(name=name, tags=[name.split(":")[0]] if ":" in name else None) as langfuse_span:
+        try:
+            yield span
+        except Exception as e:
+            langfuse_span.level = "error"
+            langfuse_span.metadata = {"error": str(e)}
+            raise
 
 
-def _write_span(span: dict[str, Any]) -> None:
-    """Write a span to the trace file."""
-    trace_file = _trace_dir / f"trace_{datetime.now():%Y%m%d}.jsonl"
-    with open(trace_file, "a") as f:
-        f.write(json.dumps(span) + "\n")
+def trace_agent(agent_name: str):
+    """Decorator for agent functions to automatic tracing."""
+    def decorator(func):
+        @observe(observe_fn_name=f"agent:{agent_name}")
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def flush_traces() -> None:
+    """Flush all pending traces to Langfuse. Call at script exit."""
+    client = _get_client()
+    client.flush()
 
 
 def get_trace_summary() -> dict[str, Any]:
-    """Return summary of all traces for the current day."""
-    trace_file = _trace_dir / f"trace_{datetime.now():%Y%m%d}.jsonl"
-    if not trace_file.exists():
-        return {"total_spans": 0, "spans": []}
-
-    spans = []
-    with open(trace_file) as f:
-        for line in f:
-            if line.strip():
-                spans.append(json.loads(line))
-
-    total_duration = sum(s.get("duration_seconds", 0) for s in spans)
-    return {
-        "total_spans": len(spans),
-        "total_duration": total_duration,
-        "spans": [s["name"] for s in spans],
-    }
+    """Return summary of recent traces."""
+    client = _get_client()
+    traces = client.api.get_recent_traces(limit=10)
+    return {"traces": traces.model_dump() if hasattr(traces, 'model_dump') else str(traces)}

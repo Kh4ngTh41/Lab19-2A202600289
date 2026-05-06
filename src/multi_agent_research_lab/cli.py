@@ -13,6 +13,7 @@ from multi_agent_research_lab.core.state import ResearchState
 from multi_agent_research_lab.evaluation.benchmark import run_benchmark
 from multi_agent_research_lab.graph.workflow import MultiAgentWorkflow
 from multi_agent_research_lab.observability.logging import configure_logging
+from multi_agent_research_lab.observability.tracing import flush_traces
 
 app = typer.Typer(help="Multi-Agent Research Lab starter CLI")
 console = Console()
@@ -52,6 +53,8 @@ def baseline(
         title="Single-Agent Baseline",
     ))
 
+    flush_traces()
+
 
 @app.command("multi-agent")
 def multi_agent(
@@ -70,6 +73,8 @@ def multi_agent(
         f"[bold]Final answer:[/bold]\n{result.final_answer}",
         title="Multi-Agent Workflow",
     ))
+
+    flush_traces()
 
 
 @app.command("benchmark")
@@ -108,6 +113,8 @@ def benchmark(
         f"  Quality: {multi_metrics.quality_score or 0:.1f}/10",
         title="Benchmark Results",
     ))
+
+    flush_traces()
 
 
 if __name__ == "__main__":
